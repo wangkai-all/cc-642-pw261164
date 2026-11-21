@@ -1,0 +1,208 @@
+{
+  "description": "Sample scenarios. Each entry is sent byte-for-byte by the local sender and decoded at receive time. Entries with the same raw_hex are the same bytes interpreted by different databases.",
+  "scenarios": [
+    {
+      "id": "status-normal",
+      "title": "VehicleStatus - nominal",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 256,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Motorola 12-bit torque, signed coolant with offset, text enum.",
+      "values": {
+        "Counter": 7,
+        "Speed": 88.88,
+        "CoolantTemp": 85,
+        "EngineTorque": -123.5,
+        "AuxFlags": 5,
+        "ThrottlePct": 42,
+        "LampState": 2
+      }
+    },
+    {
+      "id": "status-negative-edge",
+      "title": "VehicleStatus - negative boundary",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 256,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Torque at the most negative value its 12 signed bits can carry (-1024 raw = -512 Nm), coolant at -40 degC.",
+      "values": {
+        "Counter": 8,
+        "Speed": 0,
+        "CoolantTemp": -40,
+        "EngineTorque": -512,
+        "AuxFlags": 0,
+        "ThrottlePct": 0,
+        "LampState": 0
+      }
+    },
+    {
+      "id": "status-overrange",
+      "title": "VehicleStatus - declared range exceeded",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 256,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Torque 1010 Nm is encodable (raw 2020 fits 12 signed bits) but above the declared maximum 1000. The receiver must flag the declared-range violation while keeping the frame; the frame itself is valid.",
+      "values": {
+        "Counter": 9,
+        "Speed": 200,
+        "CoolantTemp": 90,
+        "EngineTorque": 1010,
+        "AuxFlags": 15,
+        "ThrottlePct": 95,
+        "LampState": 3
+      }
+    },
+    {
+      "id": "mux-drive",
+      "title": "BodyCommand - Mode=1 Drive",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 257,
+      "is_extended": false,
+      "dlc": 8,
+      "mux_value": 1,
+      "note": "Mode=1 selects MotorRpm and MotorCurrent. The Charge* and ServiceCode bits belong to other branches.",
+      "values": {
+        "MotorRpm": 1200,
+        "MotorCurrent": 50,
+        "Heartbeat": 1
+      }
+    },
+    {
+      "id": "mux-charge",
+      "title": "BodyCommand - Mode=2 Charge",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 257,
+      "is_extended": false,
+      "dlc": 8,
+      "mux_value": 2,
+      "note": "Mode=2 selects ChargeVoltage and ChargeTimer; the Drive-only signals must read as not applicable even though their bits contain data.",
+      "values": {
+        "ChargeVoltage": 400,
+        "ChargeTimer": 30,
+        "Heartbeat": 2
+      }
+    },
+    {
+      "id": "mux-miss",
+      "title": "BodyCommand - Mode=5 (no branch defined)",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 257,
+      "is_extended": false,
+      "dlc": 8,
+      "mux_value": 5,
+      "note": "No m5 branch exists. Every multiplexed signal must be not applicable, never zero. The bytes still carry 0x11 0x22 ... so a zero would be visibly wrong.",
+      "raw_hex": "05 11 22 33 44 55 66 01"
+    },
+    {
+      "id": "nested-leafa",
+      "title": "DiagNested - Group=1 Sub=2 selects LeafA",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 258,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Nested multiplexing: Group=1 exposes Sub, Sub=2 selects LeafA. LeafB is not applicable.",
+      "values": {
+        "Sub": 2,
+        "LeafA": 9,
+        "PlainGroup": 7,
+        "Heartbeat": 3
+      },
+      "nested_mux": {
+        "Sub": 2
+      },
+      "mux_value": 1
+    },
+    {
+      "id": "nested-blocked",
+      "title": "DiagNested - Group=5 blocks Sub",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 258,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Group=5 means the Sub selector itself is not applicable, so everything below it is unknown. A decoder that walks the tree unconditionally would invent values here.",
+      "raw_hex": "55 09 00 00 00 00 00 03"
+    },
+    {
+      "id": "extended-charger",
+      "title": "ChargerStatus - 29-bit extended, Motorola",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 419385573,
+      "is_extended": true,
+      "dlc": 8,
+      "note": "Extended id 0x18FF50E5. Both 16-bit values are Motorola with the start bit as MSB and the second one is signed.",
+      "values": {
+        "OutputVoltage": 400.5,
+        "OutputCurrent": -12.34,
+        "Temperature": 45,
+        "ChargerState": 1,
+        "SerialTail": 4660
+      }
+    },
+    {
+      "id": "short-frame",
+      "title": "VehicleStatus - 6-byte frame",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 256,
+      "is_extended": false,
+      "dlc": 6,
+      "note": "The definition expects 8 bytes, the sender emits 6. LampState (bits 60..63) leaves the frame: it must be reported as unreadable, while the signals that fit still decode.",
+      "raw_hex": "01 02 03 AB CD EF"
+    },
+    {
+      "id": "long-frame",
+      "title": "VehicleStatus - 10-byte frame",
+      "dbc": "demo_ecu.dbc",
+      "frame_id": 256,
+      "is_extended": false,
+      "dlc": 10,
+      "note": "Longer than the definition. CANLab keeps the extra bytes in the raw view and flags the length; it does not truncate the trace.",
+      "raw_hex": "01 02 03 AB CD EF 11 22 AA BB"
+    },
+    {
+      "id": "unknown-id",
+      "title": "FreeCounter - decoded by a database that does not define it",
+      "dbc": "conflict_a.dbc",
+      "frame_id": 259,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "0x103 exists only in demo_ecu.dbc. Sent while reading through conflict_a.dbc, it must show 'no such message' plus the raw bytes, not a fake decode.",
+      "raw_hex": "DE AD BE EF 01 00 00 00"
+    },
+    {
+      "id": "ab-powertrain",
+      "title": "Powertrain - the same bytes under conflict_a and conflict_b",
+      "dbc": "conflict_a.dbc",
+      "frame_id": 768,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Sent to both databases. A reads Torque as 12-bit Intel signed; B reads a 16-bit Motorola field at the same offset, and B also declares 6 bytes. The comparison panel explains the difference field by field.",
+      "raw_hex": "10 27 00 20 11 22 00 00",
+      "also_send_to": "conflict_b.dbc"
+    },
+    {
+      "id": "ab-thermal",
+      "title": "Thermal - Mode=2 selects PumpRpm in A, PumpPressure in B",
+      "dbc": "conflict_a.dbc",
+      "frame_id": 769,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "Both files define the same bits for Mode=2 but call them different things with different units and scales. This is the 'is the definition wrong or the frame wrong' case.",
+      "raw_hex": "02 80 0C 00 00 64 30 00",
+      "also_send_to": "conflict_b.dbc"
+    },
+    {
+      "id": "ab-overlap",
+      "title": "ConflictOverlap - overlap in A, out-of-frame tail in both",
+      "dbc": "conflict_a.dbc",
+      "frame_id": 770,
+      "is_extended": false,
+      "dlc": 8,
+      "note": "A overlaps PackVoltage and TorqueRaw on bits 12..15 and both files' SigOverrun reaches past byte 7. The definition findings locate each fault by source line; the frame itself is still displayed.",
+      "raw_hex": "E8 03 44 33 12 34 00 00",
+      "also_send_to": "conflict_b.dbc"
+    }
+  ]
+}

@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CANLab - CAN frame / DBC workbench</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>CANLab</h1>
+      <p class="tagline">Frame bytes in. Two definitions out. Every bit accounted for.</p>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Workspace">
+    <button class="tab" role="tab" aria-selected="true" data-view="send">Sender</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="receive">Receiver</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="compare">A/B compare</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="export">Export</button>
+  </nav>
+  <div class="header-status" id="header-status" role="status" aria-live="polite"></div>
+</header>
+
+<main>
+<!-- ===================== DATABASES ===================== -->
+<section class="panel" id="db-panel" aria-labelledby="db-heading">
+  <div class="panel-head">
+    <h2 id="db-heading">Databases</h2>
+    <span class="hint">Load one or two. Conflicting definitions load on purpose &mdash; the conflict is the subject, not a blocker.</span>
+  </div>
+  <div class="db-body">
+    <div class="db-loaders">
+      <div class="field-row">
+        <label for="fixture-select">Fixture</label>
+        <select id="fixture-select"></select>
+        <button class="btn" id="load-fixture">Load fixture</button>
+      </div>
+      <div class="field-row">
+        <label for="dbc-file">Your DBC file</label>
+        <input type="file" id="dbc-file" accept=".dbc,text/plain">
+      </div>
+      <div class="field-row">
+        <label for="dbc-paste">or paste DBC text</label>
+        <textarea id="dbc-paste" rows="3" placeholder="BO_ 256 ..."></textarea>
+        <button class="btn" id="upload-paste">Load pasted DBC</button>
+      </div>
+    </div>
+    <div id="db-list" class="db-list" aria-live="polite"></div>
+  </div>
+</section>
+
+<!-- ===================== SENDER ===================== -->
+<section class="view" id="view-send" role="tabpanel" aria-labelledby="tab-send">
+  <div class="layout-two">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Compose a frame</h2>
+        <span class="hint">The byte preview and the rejections come from the same encoder that writes the frame.</span>
+      </div>
+      <div class="sender-controls">
+        <div class="field-grid">
+          <label class="field"><span>Database</span><select id="send-dbc"></select></label>
+          <label class="field"><span>Message</span><select id="send-message"></select></label>
+          <label class="field"><span>Frame length (bytes)</span>
+            <input type="number" id="send-dlc" min="0" max="64" value="8">
+          </label>
+          <label class="field"><span>Multiplexer value</span>
+            <input type="number" id="send-mux" min="0" max="65535">
+          </label>
+          <label class="field"><span>Pad byte</span>
+            <input type="text" id="send-pad" value="00" maxlength="2" size="3" title="Hex, 00-FF">
+          </label>
+        </div>
+        <div class="field-grid">
+          <label class="field"><span>Negative boundary shortcut</span>
+            <select id="send-boundary">
+              <option value="">-</option>
+              <option value="min">minimum physical value</option>
+              <option value="raw_min">most negative raw value</option>
+              <option value="max">maximum physical value</option>
+            </select>
+          </label>
+          <label class="field checkbox-field">
+            <input type="checkbox" id="send-force">
+            <span>Send even if pre-flight rejects it (records the reason)</span>
+          </label>
+        </div>
+        <div id="boundary-note" class="boundary-note" hidden></div>
+      </div>
+
+      <div class="signal-editor" id="send-signals" aria-live="polite"></div>
+
+      <div class="sender-actions">
+        <button class="btn btn-primary" id="send-btn">Send frame</button>
+        <button class="btn" id="send-preview-btn">Recompute preview</button>
+        <span class="hint" id="send-stage"></span>
+      </div>
+    </div>
+
+    <div class="panel preview-panel">
+      <div class="panel-head">
+        <h2>Wire preview</h2>
+        <span class="hint">Exactly the bytes the receiver will get.</span>
+      </div>
+      <div class="wire" id="wire-preview" aria-live="polite"></div>
+      <div class="bitmap-wrap" id="preview-bitmap"></div>
+      <div id="preview-findings" class="findings"></div>
+      <details class="preview-decode" id="preview-decode-wrap">
+        <summary>Decode these bytes again</summary>
+        <div id="preview-decode"></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== RECEIVER ===================== -->
+<section class="view" id="view-receive" role="tabpanel" aria-labelledby="tab-receive" hidden>
+  <div class="layout-receive">
+    <div class="panel">
+      <div class="panel-head">
+        <h2>Received frames</h2>
+        <span class="hint">Nothing is dropped: a rejected frame stays with its bytes.</span>
+        <div class="panel-tools">
+          <button class="btn btn-small" id="load-samples">Load sample frames</button>
+          <button class="btn btn-small" id="import-toggle">Import raw frame</button>
+          <button class="btn btn-small btn-quiet" id="clear-frames">Clear</button>
+        </div>
+      </div>
+      <form id="import-form" class="import-form" hidden>
+        <div class="field-grid">
+          <label class="field"><span>Database</span><select id="import-dbc"></select></label>
+          <label class="field"><span>Frame id (hex or decimal)</span><input id="import-id" value="0x100"></label>
+          <label class="field"><span>Extended</span><input type="checkbox" id="import-ext"></label>
+          <label class="field span-2"><span>Payload hex</span><input id="import-hex" placeholder="01 02 03 04 05 06 07 08"></label>
+        </div>
+        <button class="btn" type="submit">Import frame</button>
+      </form>
+      <div class="frame-list" id="frame-list" role="list"></div>
+    </div>
+
+    <div class="panel detail-panel" id="frame-detail">
+      <div class="panel-head">
+        <h2>Decode</h2>
+        <span class="hint" id="detail-subtitle">Select a frame.</span>
+      </div>
+      <div id="detail-body" class="detail-body">
+        <p class="empty">No frame selected.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== COMPARE ===================== -->
+<section class="view" id="view-compare" role="tabpanel" aria-labelledby="tab-compare" hidden>
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Two definitions, one frame</h2>
+      <span class="hint">Choose two loaded databases and a recorded frame; they are decoded side by side from the same bytes.</span>
+    </div>
+    <div class="field-grid compare-controls">
+      <label class="field"><span>Frame</span><select id="compare-frame"></select></label>
+      <label class="field"><span>Left database</span><select id="compare-left"></select></label>
+      <label class="field"><span>Right database</span><select id="compare-right"></select></label>
+      <label class="field checkbox-field"><span>&nbsp;</span>
+        <button class="btn" id="compare-run">Compare</button>
+      </label>
+    </div>
+    <div id="compare-diff" class="compare-diff"></div>
+    <div id="compare-grid" class="compare-grid"></div>
+  </div>
+</section>
+
+<!-- ===================== EXPORT ===================== -->
+<section class="view" id="view-export" role="tabpanel" aria-labelledby="tab-export" hidden>
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Export</h2>
+      <span class="hint">Raw integers, physical values and text enums are separate columns. Choose which travel.</span>
+    </div>
+    <div id="export-groups" class="export-groups"></div>
+    <div class="export-actions">
+      <button class="btn" id="export-csv">Download CSV</button>
+      <button class="btn" id="export-json">Download JSON</button>
+      <span class="hint" id="export-note"></span>
+    </div>
+    <pre class="export-preview" id="export-preview" aria-live="polite"></pre>
+  </div>
+</section>
+</main>
+
+<footer class="app-footer">
+  <p>
+    CANLab decodes bit by bit itself. <strong>cantools</strong> is loaded separately as an
+    independent second opinion: its load and decode errors are shown in their own panel
+    and never merged with CANLab's business rejections.
+  </p>
+</footer>
+
+<script src="/static/bits.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

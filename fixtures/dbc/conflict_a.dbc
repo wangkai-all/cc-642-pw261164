@@ -1,0 +1,56 @@
+VERSION "CANLab conflict fixture - interpretation A"
+NS_ :
+    CM_
+    VAL_
+
+BS_:
+
+BU_: Gateway MotorECU
+
+// ---------------------------------------------------------------------------
+// Interpretation A: "the motor ECU's datasheet".
+//
+// Valid on its own.  conflict_b.dbc claims the same frame ids with different
+// bit packing, scaling, signs and even a different frame length, so the two
+// files cannot both describe the same bus.
+//
+// 0x300 Powertrain, exactly 64 bits:
+//   Rpm          0..15   Intel unsigned
+//   Torque       16..27  Intel signed, 12 bits
+//   Pedal        28..35  Intel, scale 0.4
+//   Gear         36..39  Intel, 4 bits
+//   OilPressure  40..47  Intel, scale 4
+//   Cruise       48      1 bit
+//   Reserved     49..63  15 bits
+// ---------------------------------------------------------------------------
+BO_ 768 Powertrain: 8 MotorECU
+ SG_ Rpm : 0|16@1+ (1,0) [0|65535] "rpm" Gateway
+ SG_ Torque : 16|12@1- (0.5,0) [-1000|1000] "Nm" Gateway
+ SG_ Pedal : 28|8@1+ (0.4,0) [0|100] "%" Gateway
+ SG_ Gear : 36|4@1+ (1,0) [0|15] "" Gateway
+ SG_ OilPressure : 40|8@1+ (4,0) [0|1020] "kPa" Gateway
+ SG_ Cruise : 48|1@1+ (1,0) [0|1] "" Gateway
+ SG_ Reserved : 49|15@1+ (1,0) [0|32767] "" Gateway
+
+BO_ 769 Thermal: 8 MotorECU
+ SG_ Mode M : 0|8@1+ (1,0) [0|2] "" Gateway
+ SG_ FanDuty m1 : 8|8@1+ (0.4,0) [0|100] "%" Gateway
+ SG_ PumpRpm m2 : 8|16@1+ (1,0) [0|65535] "rpm" Gateway
+ SG_ Coolant : 40|8@1+ (1,-40) [-40|215] "degC" Gateway
+ SG_ Ambient : 48|8@1- (0.5,-40) [-40|87.5] "degC" Gateway
+
+// ---------------------------------------------------------------------------
+// 0x302 is deliberately broken:
+//   PackVoltage 0..15 and TorqueRaw 12..27 share bits 12..15 -- two
+//   different owners of the same bits, which no DBC consumer can resolve.
+//   SigOverrun starts at sawtooth 60 but is 8 bits long, so it reaches
+//   linear bit 67 in an 8-byte frame (capacity 0..63).
+// A standard toolchain refuses this file outright.  CANLab loads it so both
+// faults can be located at their source lines.
+// ---------------------------------------------------------------------------
+BO_ 770 ConflictOverlap: 8 MotorECU
+ SG_ PackVoltage : 0|16@1+ (0.1,0) [0|800] "V" Gateway
+ SG_ TorqueRaw : 12|16@1+ (1,0) [0|65535] "" Gateway
+ SG_ SigOverrun : 60|8@1+ (1,0) [0|255] "" Gateway
+
+VAL_ 769 Mode 0 "Off" 1 "Fan" 2 "Pump" ;

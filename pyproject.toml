@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "canlab"
+version = "1.0.0"
+description = "CAN frame / DBC workbench: bit-exact decoding, A/B DBC comparison, local frame sender"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.optional-dependencies]
+oracle = ["cantools>=39,<46"]
+test = ["pytest>=7"]
+
+[project.scripts]
+canlab = "canlab.server:main"
+
+[tool.setuptools]
+packages = ["canlab"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

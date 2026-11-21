@@ -1,0 +1,52 @@
+VERSION "CANLab conflict fixture - interpretation B"
+NS_ :
+    CM_
+    VAL_
+
+BS_:
+
+BU_: Gateway MotorECU
+
+// ---------------------------------------------------------------------------
+// Interpretation B: "the integrator's older DBC".
+//
+// Deliberate disagreements with conflict_a.dbc on the same frame ids:
+//
+//   0x300  Torque is 16 bits Motorola (bits 16..31) instead of 12 bits Intel
+//          (16..27); Pedal moves to 32..39 with scale 0.5 and offset -20;
+//          Gear to 40..43; OilPressure to 44..47 with scale 2.  A is valid,
+//          B is valid, but a raw torque of 1000 Nm means something else.
+//
+//   0x300  declares 6 bytes, not 8.  Cruise (bit 48) and Reserved (49..63)
+//          therefore do not fit -- B's own definition conflict, reported by
+//          CANLab and refused by a strict toolchain.
+//
+//   0x301  Mode=2 selects a 16-bit PumpPressure (bar) where A has PumpRpm
+//          (rpm).  Same bits, different unit and scale.
+//
+//   0x302  TorqueRaw moved to 16..31, so the overlap with PackVoltage goes
+//          away.  SigOverrun is still out of frame.  B is therefore the
+//          "fixed overlap, still broken tail" variant.
+// ---------------------------------------------------------------------------
+BO_ 768 Powertrain: 6 MotorECU
+ SG_ Rpm : 0|16@1+ (1,0) [0|65535] "rpm" Gateway
+ SG_ Torque : 23|16@0- (1,0) [-32768|32767] "Nm" Gateway
+ SG_ Pedal : 32|8@1+ (0.5,-20) [-20|107.5] "%" Gateway
+ SG_ Gear : 40|4@1+ (1,0) [0|15] "" Gateway
+ SG_ OilPressure : 44|4@1+ (2,0) [0|30] "kPa" Gateway
+ SG_ Cruise : 48|1@1+ (1,0) [0|1] "" Gateway
+ SG_ Reserved : 49|15@1+ (1,0) [0|32767] "" Gateway
+
+BO_ 769 Thermal: 8 MotorECU
+ SG_ Mode M : 0|8@1+ (1,0) [0|2] "" Gateway
+ SG_ FanDuty m1 : 8|8@1+ (0.5,0) [0|127.5] "%" Gateway
+ SG_ PumpPressure m2 : 8|16@1+ (0.01,0) [0|655.35] "bar" Gateway
+ SG_ Coolant : 40|8@1+ (1,-40) [-40|215] "degC" Gateway
+ SG_ Ambient : 48|8@1- (0.5,-40) [-40|87.5] "degC" Gateway
+
+BO_ 770 ConflictOverlap: 8 MotorECU
+ SG_ PackVoltage : 0|16@1+ (0.1,0) [0|800] "V" Gateway
+ SG_ TorqueRaw : 16|16@1+ (1,0) [0|65535] "" Gateway
+ SG_ SigOverrun : 60|8@1+ (1,0) [0|255] "" Gateway
+
+VAL_ 769 Mode 0 "Off" 1 "Fan" 2 "Pump" ;
